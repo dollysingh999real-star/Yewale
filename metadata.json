@@ -1,0 +1,6 @@
+{
+  "name": "Yewale Amruttulya — Cutting Chai Since 1983",
+  "description": "Yewale Amruttulya — Pune's cutting chai since 1983. 650+ outlets across India. Real tea, brewed fresh, with prices on the menu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

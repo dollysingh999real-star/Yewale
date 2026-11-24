@@ -1,0 +1,229 @@
+Build a single-file, scroll-driven product website for YEWALE AMRUTTULYA, a real tea chain from Pune, India (since 1983, 650+ outlets in 13 states). INSPIRED BY the SUNFIZZ / MotionSites soda site — same scroll-film architecture, same choreography language — but this is Yewale's own site, not a copy: the product is a 3D CUTTING CHAI GLASS (not a bottle), the palette is Yewale's red/cream/brown, the story is Yewale's real story, and — unlike SUNFIZZ — the page ends with a REAL MENU WITH PRICES, because that is the whole point of this preview. All products are real-time 3D chai glasses rendered with Three.js r160 on one full-screen WebGL canvas. Four story sections are choreographed on one continuous scroll timeline: hero carousel, sticky back-band story, manifesto, and a receding glass lineup. Every visible layer in the film is `position: fixed` and driven by a smoothed scroll value. The film runs over an empty 705vh tall track; after it ends, the canvas fades out and the page continues into normal scrolling sections (menu, signatures, story, outlets, contact, footer — see section 11).
+
+---
+
+## 1. Assets and URLs
+
+| Asset | URL / source | Use |
+|---|---|---|
+| Three.js | `https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js` via an import map `{"imports":{"three":"…"}}` | Renderer |
+| Barlow Condensed 800 italic | `https://fonts.gstatic.com/s/barlowcondensed/v13/HTxyL3I-JCGChYJ8VI-L6OO_au7B6xTrf3fmu4kG.woff2` | Display type, back-band row headings |
+| Barlow Condensed 900 italic | `https://fonts.gstatic.com/s/barlowcondensed/v13/HTxyL3I-JCGChYJ8VI-L6OO_au7B6xTrW3bmu4kG.woff2` | Logo, all big headlines, manifesto texture |
+| Manrope 400–700 (variable, latin) | `https://fonts.gstatic.com/s/manrope/v23/xn7gYHE41ni1AdIRggexSg.woff2` | Body copy, nav, buttons, small print |
+| Baloo 2 700 | `https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap` | Devanagari "येवले" wordmark only (Barlow has no Devanagari) |
+
+There is NO external label artwork sheet — the glass band (front and back) is drawn in canvas from the specs in section 4. Everything else (glass geometry, chai, saucer, steam, environment lighting, background, manifesto type, glows) is generated in code.
+
+## 2. Head, fonts, tokens
+
+- `<title>Yewale Amruttulya — Cutting Chai Since 1983</title>`, meta description "Yewale Amruttulya — Pune's cutting chai since 1983. 650+ outlets across India. Real tea, brewed fresh, with prices on the menu.", and the viewport `width=device-width, initial-scale=1, viewport-fit=cover`.
+- @font-face: "Barlow Condensed" italic 800 and italic 900 with `font-display:block`, "Manrope" normal 400–700 with `font-display:swap`, and "Baloo 2" 700 for the Devanagari wordmark.
+- Colour tokens: `--brown #2B1A12` (text), `--red #D7261E` (accent), `--cream #FFF6E8`, `--yellow #FFC61A`, `--orange #E8604A`. The html and body background is #F5B39A.
+- Easing token: `--ease: cubic-bezier(.22,1,.36,1)`. Font stacks: `--disp: "Barlow Condensed", Impact, sans-serif` and `--body: "Manrope", system-ui, sans-serif`.
+
+### Tea table (8 teas — the hero range)
+
+| # | Name | Liquid (chai colour) | Accent | Price |
+|---|---|---|---|---|
+| 0 | REGULAR TEA | #C08A3E (milk-tea brown) | #D7261E | ₹10 |
+| 1 | JAGGERY TEA | #A66A2E (deep amber) | #E58A2A | ₹20 |
+| 2 | GINGER TEA | #C9973F (golden) | #D97B29 | ₹20 |
+| 3 | LEMON TEA | #D9A441 (pale amber) | #E8B93C | ₹20 |
+| 4 | BLACK TEA | #7A4A20 (dark amber) | #8A5A2B | ₹20 |
+| 5 | MASALA TEA | #B07A35 (spiced brown) | #C7332B | ₹20 |
+| 6 | COLD TEA | #E3B95C (iced pale) | #C95A4A | ₹30 |
+| 7 | SPECIAL MASALA MILK | #E8C88A (creamy) | #E7A229 | ₹35 |
+
+There are 16 glass instances. Instance i uses tea `i % 8`, so every tea appears twice. Per-instance hero tilt (rad): .10, −.15, .07, −.09, .14, −.06, .12, −.13, .08, −.11, .15, −.07, .09, −.14, .06, −.10.
+
+## 3. DOM, in order (all film overlays fixed)
+
+1. `canvas#gl`: fixed, inset 0, 100vw × 100lvh, `touch-action: pan-y`. It starts at opacity 0 and fades to 1 over 1 s with the ease token when `body.ready` is added. It fades back to 0 as the scroll passes the end of the film (see section 6).
+2. `header.nav`: fixed, 84px tall, contents centred, z-index 5.
+   - It starts at opacity 0 and translateY(−12px), then eases in over .9 s when `body.intro-ui` is added (at 70% of the intro).
+   - Logo: "येवले YEWALE" — "येवले" in Baloo 2 700, "YEWALE" in Barlow 900 italic 40px, letter-spacing −.01em, cream, text-shadow `0 1px 14px rgba(120,40,20,.18)`, centred.
+   - Right group, absolutely positioned 48px from the right edge with a 34px gap:
+     - Menu button: a 2×2 grid of 4px rounded squares with a 3px gap, then the word "MENU" (Manrope 700 13px, letter-spacing .08em), cream, min 32×32px.
+     - "SEE MENU" pill: Manrope 800 12px, letter-spacing .08em, 1.5px cream border, radius 999px, padding 9px 24px. On hover it fills cream with brown text. A click glides to the menu section (past the film).
+3. `#hero` overlay:
+   - `h1.title`: the current tea name. Top-left at left 3.4vw, top max(92px, 11vh). Barlow 900 italic, size clamp(54px, 7.4vw, 112px), line-height 1, letter-spacing −.015em, brown #2B1A12, uppercase. Overflow hidden with height equal to one line, so names roll vertically.
+   - `.price`: directly below the title, the current tea's price ("₹10", "₹20", "₹30", "₹35") in Barlow 900 italic, size clamp(28px, 3vw, 44px), red #D7261E. It rolls vertically together with the name when the centre tea changes.
+   - Arrow buttons bottom-right (right 3.2vw, bottom max(40px, 6vh), 16px gap). Each is a 52px circle with a 2px cream border at .95 alpha, cream fill at .08 alpha, shadow `0 4px 18px rgba(150,60,30,.12)` and an 18px chevron (stroke 2). On hover the fill rises to .22 alpha and the button scales to 1.06; while pressed it scales to .96.
+   - `.strip`: a 3px glowing line on the bottom edge. Its gradient runs transparent → tea tint (18%) → white (50%) → tea tint (82%) → transparent, with box-shadows `0 0 22px 6px` and `0 0 70px 18px` in the tea accent colour. The accent colour comes from the CSS variables --sc and --sg, set every frame.
+4. `#story` overlay:
+   - Left icon column: left 4.4vw, vertically centred, 22px gap. Four 58px circles with a 2px cream border and 24px line icons (cup, leaf, sun, menu). The active one has a cream fill, a red icon and scale 1.08, transitioned over .45 s with the ease token. The 4th icon (menu) jumps to the menu section when clicked.
+   - Copy block: left 51.5vw, top 50%, translateY(−46%), width min(36vw, 520px).
+     - Tag: a 22px red rounded square, then text in Manrope 700 11px, letter-spacing .16em, uppercase.
+     - Title `h2.stitle`: Barlow 900 italic clamp(64px, 7.6vw, 118px), line-height .9, letter-spacing −.02em, brown, min-height 1.8em. It contains a placeholder-bars element: two blurred bars at 80% and 56% width, brown at .18 alpha.
+     - Body: Manrope 400 clamp(15px, 1.25vw, 19px), line-height 1.6, brown at .86 alpha.
+5. `#track`: an empty div, 705vh tall. It is what the browser scrolls during the film.
+6. `#menu-sections`: normal document flow AFTER `#track` — the menu, signatures, story, outlets, contact and footer (section 11). These are ordinary scrolling sections, not fixed layers.
+
+## 4. 3D scene
+
+- **Renderer:**
+  - WebGLRenderer with antialias.
+  - Pixel ratio min(dpr, 1.5). If the average frame time goes above 19.5 ms, it drops by .15 (down to .7) and won't rise again for 8 s. Otherwise it climbs back by .05 per 1.2 s while frames stay under 17.3 ms.
+  - Tone mapping ACESFilmic at exposure 1.0, sRGB output.
+- **Camera:** PerspectiveCamera with fov 30, at z = 10 looking at the origin. The visible height at z = 0 is VH = 20·tan(15°) = 5.359, and the visible width is W = VH × aspect.
+- **Environment** (PMREM from a small scene, blur .035): background #2c1b17, plus emissive planes facing the origin:
+  - 1.0×16 white ×7 at (−5.5, 0, 4.2)
+  - 0.55×16 white ×5 at (4.8, .5, 3.6)
+  - 0.35×16 #fff4ea ×3.5 at (1.4, 0, 6.5)
+  - 12×2.5 #fff1e6 ×2.4 at (0, 7.5, 1.5)
+  - 10×9 #ff9466 ×1.3 at (0, −1, −8)
+  - 7×8 #ffc6a8 ×1.1 at (−8, −1, −3)
+  - 7×8 #ffb08c ×.9 at (8, −1, −2)
+
+  These planes create the long vertical specular streaks on the glass. A DirectionalLight (white, 1.1) sits at (−3, 5, 6), plus an AmbientLight #ffe8dc at .35.
+- **Chai glass (height 2.43 units, pivot at mid-height — THE SAME coordinate space as the SUNFIZZ bottle, so all layout and choreography values in sections 6–8 transfer unchanged):**
+  - **Glass:** a LatheGeometry with 112 segments from a 140-point centripetal Catmull-Rom profile of (radius, y): (0,0) (.30,0) (.335,.022) (.345,.085) (.35,.16) (.355,.50) (.365,1.0) (.38,1.5) (.40,1.9) (.415,2.2) (.425,2.35) (.43,2.43). A tall tapered cutting-chai tumbler, wider at the top.
+    - Material: MeshPhysicalMaterial with black colour, roughness .04, transparent, opacity .07, no depth write, clearcoat 1 (roughness .05), envMapIntensity 2.1, ior 1.5.
+    - Before `opaque_fragment`, alpha is patched to `a + fresnel·.3 + smoothstep(.22, 1.1, maxRGB(outgoingLight))·.9`, where fresnel = (1 − |n·v|)^2.2. Only the rims and specular highlights become opaque, which keeps the chai colour rich.
+    - Condensation: a droplet normal map (512² canvas with 340 seeded radial-gradient drops, radius 2–15px, converted to normals with strength 2.2, repeat 3 × 2.4, normalScale .42) is applied ONLY to the Cold Tea instance (iced tea sweats; hot chai does not).
+  - **Chai:** a lathe (96 segments) of (0,.06) (.27,.06) (.31,.09) (.32,.16) (.325,.50) (.335,1.0) (.35,1.5) (.37,1.9) (.385,2.05) (.39,2.12) (0,2.12). Filled to y 2.12 — headroom below the rim, because chai is never served to the brim. MeshPhysicalMaterial in the tea liquid colour, roughness .22, emissive in the same colour, clearcoat .7. A froth ring (thin torus at y 2.12, radius .39, tube .015) in a lighter shade of the liquid colour sits on top of the chai.
+  - **Steel saucer:** a flat cylinder, radius .62, height .06, at y −.03 (under the glass base). MeshStandardMaterial, colour #C8C8C8, metalness .9, roughness .25 (brushed steel — the saucer a cutting glass sits on).
+  - **Front band:** an open CylinderGeometry with radius .44, height .62, centred on +z, covering an arc of (.62·2)/.44 rad. It sits at y .75 from the base. Canvas texture (1024×512): a cream (#FFF6E8) band with "येवले YEWALE" (Baloo 2 700 + Barlow 900 italic, red #D7261E) at the top, the tea name in Barlow 900 italic in the tea accent colour, and the price ("₹10" / "₹20" / "₹30" / "₹35") in Barlow 900 italic red, large. alphaTest .5, roughness .55, clearcoat .25.
+  - **Back band:** an open cylinder with radius .44, height .62, arc 2.4 rad centred on π, at y .75.
+    - The 1024×512 canvas holds the cream band, "येवले YEWALE" small at the top, and three rows:
+      - STANDARDIZED RECIPE: "One recipe, brewed the same at 650+ outlets"
+      - NO PRESERVATIVES: "Brewed fresh, served hot, nothing artificial"
+      - 100% VEGETARIAN: "Every item on the menu, vegetarian"
+    - Each row has a small outlined circle icon (cup, leaf, sun) and the heading in Barlow 800 italic with detail text in Manrope 500.
+    - Footer: "650+ outlets · 13 states · Since 1983".
+    - There is no coloured fill on the band: rows are highlighted in the shader with white light only (see section 8).
+  - **Steam:** for the 7 HOT teas, a steam system above the glass rim — 12 soft white sprite particles (radial-gradient canvas texture) rising from y 2.43 to y 3.4 over ~3 s, looping, drifting sideways with a sine wobble, opacity fading in and out. Visible but gentle — steam is the signature of hot chai. Cold Tea has NO steam (it has the condensation droplets instead).
+- **Hero saucer glow:**
+  - The steel saucer (above).
+  - An additive torus ring with radius .62 and tube .007. Its colour is the tea accent colour lerped .25 toward white, ×1.5.
+  - A flattened radial-glow plane (2.4 × 0.9, tilted).
+  - The whole assembly is scaled by (hc·1.25, hc·1.2, hc·1.25) and sits at the bottom of the centre glass.
+- **Row glow:** an additive open cylinder with radius .454, height .22 and arc 2.1 rad around π, holding a horizontal/vertical feathered glow texture. It is attached to the centre glass and follows the active back-band row.
+
+## 5. Background shader (a full-screen quad drawn first)
+
+The background is a gradient from bottom to top colour. On top of it:
+- Glow: `glowColour · amount · exp(−|(uv − glowPos)·(aspect,1)|² · radius)`.
+- Floor sheen: `glow · floor · smoothstep(.5, 0, uv.y) · .55`.
+- Clouds: `fbm` (5 octaves) at uv·aspect·1.35, drifting at (.022, .011)·t, plus a second fbm at ×1.8 with weight .32, passed through smoothstep(.42, .86). The result mixes toward #FFE6DA by cloud·.5.
+- Manifesto type: two canvas textures, sharp (blur 5px) and soft (blur 26px), each 2048×1024 with "BREWED SLOW" / "SERVED HOT" in white 900 italic fitted to 1880px wide. They are mixed by `sharp`, given per-pixel animated grain (×.82–1.18), and tinted #FFF1E8 at amount·.78. The text box is centred at uTxtY (.47 portrait to .5 landscape) and is uTxtW of the screen width (1.02 portrait to .92 landscape).
+- Global film grain of ±.0225 on everything.
+
+Phase palettes (top / bottom / glow / glow position / glow amount / glow radius / clouds / floor):
+- **hero:** #F6C89F / #FDEBD7 / #FFD8C4 / (.5, .2) / .42 / 2.4 / 0 / 0
+- **story:** #F9D9B8 / #F5B39A / #FFE6D8 / (.36, .5) / .5 / 1.6 / 0 / 0
+- **manifesto:** #E8604A / #D7261E / #FFD2C2 / (.5, .42) / .45 / 1.8 / 1 / 0 (RED phase — Yewale's brand colour)
+- **lineup:** #2B1A12 / #1A0F0A / #7A2E1A / (.3, .05) / 0 / 2 / 0 / 1
+
+## 6. Scroll system
+
+- Y = (spring-smoothed scrollY) / innerHeight. A critically damped spring with ω = 5.6, sub-stepped at 240 Hz, follows the native scroll position, so wheel notches, trackpads, touch flings, keys and jumps all become one soft glide with no overshoot. With reduced motion, ω = 40. dt comes from the rAF timestamp, capped at 50 ms.
+- Timeline in viewport heights: a 0–.75 (hero → story), s .75–3.3 (story), b 3.3–3.95 (story → manifesto), m 3.95–5.0 (manifesto), c 5.0–5.7 (manifesto → lineup), l 5.7–7.05 (lineup sweep, the end of the film). a, b and c use easeInOutCubic.
+- Overlay opacity:
+  - hero = 1 − smoothstep(.02, .35, Y), shown only once the intro passes 75%
+  - story = smoothstep(.5, .8, Y) · (1 − smoothstep(3.3, 3.55, Y))
+  - visibility is set to hidden below .01.
+- **Film exit:** as Y passes 7.05, the fixed canvas and all fixed overlays fade to opacity 0 over Y 7.05–7.5, and the normal document sections (#menu-sections) scroll into view. Scrolling back up reverses exactly — the canvas fades back in and the film resumes.
+
+## 7. Layout functions (k = smoothstep(.72, 1.25, aspect): 0 is portrait, 1 is landscape)
+
+The glass is built in the same 0–2.43 unit space as the SUNFIZZ bottle, so these values transfer unchanged — "glass" replaces "bottle" throughout.
+
+- **Hero centre glass:** height lerp(.38, .5, k)·VH, capped so its width ≤ lerp(.36, .2, k)·W. The bottom sits at y = lerp(−.3, −.35, k)·VH.
+- **Hero arc (d = signed slot distance from the centre, continuous):**
+  - x = sign(d)·(min(|d|,1)·s1 + max(0,|d|−1)·s2)·W, with s1 = lerp(.36, .15, k) and s2 = lerp(.25, .104, k)
+  - scale = hc·(1 − .3·min(|d|,1) − .035·max(0,|d|−1))
+  - bottoms stay level; side glasses sit +.05·VH higher
+  - z = −min(|d|,6)·.32
+  - rotZ = tilt[i]·smoothstep(0, 1, |d|), rotY = −d·.2
+  - idle: y += sin(1.1t + 1.7i)·.035, rotZ += sin(.8t + 2.3i)·.025, rotY += sin(.5t + i)·.06
+- **Story:** start height lerp(.9, 1.08, k)·VH, at x = lerp(0, −.17, k)·W, top at lerp(.15, .44, k)·VH, tilt rotZ lerp(.12, .3, k). Close-up scale = min(start·lerp(1.25, 1.22, k), lerp(.78, .36, k)·W / 1.04) at x = lerp(0, −.165, k)·W. The active row's centre is placed at y = lerp(−.19, 0, k)·VH.
+- **Manifesto:** height min(lerp(.5, .7, k)·VH, .36·W·2.43/1.05), centre y = lerp(−.16, −.1, k)·VH.
+- **Lineup:** height lerp(.42, .6, k)·VH. For slot u = slot − easeInOut(l)·2: z = 1.4 − 1.55u; x runs linearly from −.3W·.86 (u = 0) to .48W·3.19 (u = 15), plus min(0,u)·.35W for glasses leaving on the left; the floor is at (−.43·VH)·.86; rotY = −.38 + sin(.8u + 2.5l)·.12.
+
+## 8. Choreography
+
+- **Load:**
+  - Once the fonts have loaded and all shaders are precompiled, the canvas fades in.
+  - The intro runs for 1.9 s. Each glass's own progress is (intro − .06·|d|)/.62, so the centre glass goes first.
+  - The centre glass rises from 75% of the screen height below with easeOutCubic.
+  - Side glasses fly in from ±.85W with easeOutBack (overshoot 1.15) while their tilt unwinds from ±.5 rad.
+  - The saucer glow rises with easeOutCubic. The nav, title, price and arrows fade in last.
+- **Hero carousel:**
+  - The value `car` follows a target with a critically damped spring (k = 46).
+  - Drag with mouse or touch: one glass step equals s1·innerWidth px.
+  - Release: the velocity is smoothed with lerp .35 per move and clamped to ±14 slots/s. If the pointer has rested for more than 90 ms, the velocity resets to 0. The target becomes round(car + v·.22), so a fast throw passes several glasses and glides to a soft stop.
+  - A click (under 6px of movement) raycasts the glass: clicking a side glass centres it.
+  - ‹ › buttons and the arrow keys: target ±1. A horizontal trackpad swipe adds deltaX/220, then snaps 130 ms after the last wheel event.
+  - Hover: a side glass lifts .09 and brightens, and the cursor is grab/grabbing/pointer.
+  - Lighting: the centre glass is fully lit and side glasses dim by up to 48% (chai colour ×(.42 + .58L), emissive .08 + .34L, bands .48 + .52L).
+  - When the centre tea changes, the title AND price roll: the new name and price slide in from below (or above when moving backwards) over .62 s with the ease token while the old ones slide out. The saucer ring, glow and bottom strip cross-fade to the tea accent colour with exp(−4dt) smoothing.
+  - Steam rises from the centre glass throughout (except Cold Tea, which shows condensation instead).
+- **Hero → story (a):**
+  - Side glasses slide out by ±.9W·a and shrink by 25%.
+  - The saucer glow sinks.
+  - The centre glass blends into the story pose. The glass that was centred is the one shown in the story.
+- **Story (s):**
+  - Turn: turn = easeInOut(s/.12). The glass zooms from the start scale to the close-up scale, moves to the close-up x, straightens rotZ to .025 and rotates rotY by π to show its back band.
+  - Row follow: f = step + smoothstep(.6, 1, frac(3s)), with f ≤ 2. The glass's y keeps row f (interpolated between row centres) at the row target height. rotY adds (f − 1)·.14 and an idle sway of sin(.7t)·.025.
+  - Highlight: the active row k = floor(3s) is used once s ≥ .11.
+    - The row's sweep value p moves toward 1 at 1/0.6 per second; other rows move toward 0 at 1.4× that rate. The shader receives easeInOut(p).
+    - White gradient highlight, no coloured fill: inside the active row band, a sweep mask runs where u < mix(.12, .9, p) with a .03 soft edge, feathered at both ends (smoothstep .12→.30 and .90→.72 in u). Where the mask is on, only the light band paper (luma smoothstep .72→.90) is mixed toward pure white by .85. The text, icon and detail line are never washed; they are multiplied by 1 − mask·.25, so the active row reads a touch deeper.
+    - Inactive rows are dimmed toward cream by d·.66, where d smooths toward 1 with exp(−7dt).
+    - On every row change, a diagonal white light streak crosses the row paper (not the text): position mix(−.15, 1.15, easeOutCubic(t)) over .95 s, intensity sin(πt)·.6.
+    - The row-glow cylinder follows the active row's y with exp(−8dt). It is pure white, additive, at opacity .2 + .05·sin(2.2t).
+  - Copy: the same index drives the left copy. Steps:
+    - "01 — Recipe" / STANDARDIZED RECIPE / "One recipe, brewed the same way at all 650+ outlets — the same chai, wherever you are."
+    - "02 — Fresh" / NO PRESERVATIVES / "Brewed fresh through the day and served hot. No preservatives, nothing artificial."
+    - "03 — Vegetarian" / 100% VEGETARIAN / "Every item on the menu is vegetarian — from the cutting chai to the cream roll."
+  - Decode reveal: the tag and body blur out (8px blur, .5 s), the title hides behind the placeholder bars for 230 ms, then the new title scrambles from random glyphs (A–Z, 0–9) resolving left to right over 520 ms. The tag returns at once and the body fades back in after 160 ms.
+  - Icons: the active icon fills. Clicking an icon scrolls to the middle of its step (the 4th icon jumps to the menu section).
+- **Story → manifesto (b):** the glass blends from the last story pose to the manifesto pose: it turns back to the front (rotY toward 2π), shrinks and centres. The background cross-fades to the RED manifesto palette and the type fades in (amount b).
+- **Manifesto (m):** the glass spins one full extra turn with easeInOut(m). The type sharpens from fully soft to .62 sharp with easeOutCubic(m) and drifts horizontally by (m − .5)·.03. Clouds move continuously. The steam spirals gently with the spinning glass.
+- **Manifesto → lineup (c):**
+  - The background fades to dark brown and the type fades out.
+  - The other 15 glasses slide in alternately from left and right (±1.25W, with .05·VH lift and ±1.2 rad turn) into their lineup slots, staggered by (slot%5)/5·.15.
+  - The manifesto glass moves to slot 0, at the front left.
+- **Lineup (l):** the whole row sweeps 2 slots toward the camera and left (easeInOutCubic over l), each glass turning slightly in a sine wave. At l = 1 it rests on a clean receding row with the third glass at the front left, which is the final state of the film. Steam rises gently from all 16 glasses (low opacity, for performance). Further scrolling exits the film into the menu (section 6).
+
+## 9. Responsive
+
+- **≤ 820px wide or portrait:**
+  - Nav is 68px, the logo 30px, and the word "MENU" is hidden.
+  - Hero title: left 20px, top max(78px, 10vh), size clamp(46px, 13vw, 80px). Price below it, clamp(24px, 6vw, 34px).
+  - Arrows: 48px, bottom-right 20px.
+  - Story copy: top max(86px, 11vh), full width with 20px gutters, title clamp(50px, 13vw, 84px), body 15px. The icons become a 44px row at the bottom right.
+  - The 3D layout uses the k = 0 values in section 7.
+  - Menu section: tabs scroll horizontally; the two-column item grid becomes a single column.
+- **≤ 360px wide:** logo 25px, SEE MENU padding 7px 11px.
+- **Short landscape (height ≤ 520px and aspect ≥ 1):** keeps the desktop split. The icon column is at left 3vw and the copy at left 51.5vw. Titles are clamp(40px, 6vw, 64px).
+- **Reduced motion:** the intro is skipped, the idle bob, sway, spins and steam are off, transitions are near-instant, and the scroll spring is stiff (ω 40). Drag and arrows still work.
+
+## 10. Acceptance checklist
+
+- [ ] The glass shows long vertical highlight streaks and Fresnel rims, with the rich chai colour visible and not milky. Steam rises visibly from hot teas; Cold Tea shows condensation, not steam.
+- [ ] A throw passes several glasses and settles softly, and the title AND price roll in the throw direction.
+- [ ] In the story, the glass turns to the back band and each row lights up with a soft white gradient sweep and a light streak (no coloured fill, text stays crisp) while the others dim. The camera keeps the active row level with the copy.
+- [ ] Scrolling backwards reverses everything exactly.
+- [ ] The manifesto type sharpens and grains behind the spinning glass on the red background.
+- [ ] The lineup recedes in perspective on dark brown and sweeps to a clean final row.
+- [ ] After the film, the menu section shows all 25 items with prices, and all 4 tabs switch correctly.
+- [ ] 60 fps on desktop, and no element overflows at any size from 320px to 2560px.
+
+## 11. THE MENU + CLOSING SECTIONS (normal document flow, after the 705vh film track)
+
+These are ORDINARY scrolling sections — real text, fast, readable. Cream background #FFF6E8 throughout, red ink, sections separated by thin red rules (1px). This is the part SUNFIZZ does not have, and it is the whole point of the Yewale preview: the menu with prices.
+
+- **MENU (the centerpiece):** Section heading "THE MENU" in display caps ~56–64px, with a red rule under it. Subhead: "Every price, right here. No guessing." FOUR TABS across the top: "Teas (12) · Coffee & Milk (6) · Cakes & Bakes (5) · Coolers (2)". Default tab open: Teas. Clicking a tab switches the items with a quick fade; the active tab has a red underline and red text. Items in a TWO-COLUMN grid; each item is ONE LINE: item name (bold sans ~20px) + a dotted leader + price (bold red ~28px). Signature items carry a small yellow "SIGNATURE" badge. The full item lists:
+  TEAS: Regular Tea ₹10 · Jaggery Tea ₹20 (SIGNATURE) · Ginger Tea ₹20 · Lemon Tea ₹20 · Black Tea ₹20 · Masala Tea ₹20 · Tea Without Sugar ₹20 · Less Sugar Tea ₹20 · Lemon Honey Mint Tea ₹30 · Ice Tea ₹30 · Peach Ice Tea ₹30 · Cold Tea ₹30 (SIGNATURE).
+  COFFEE & MILK: Hot Coffee ₹30 · Cold Coffee ₹60 · Almond Milk ₹35 · Turmeric Milk ₹35 · Rose Milkshake ₹60 · Special Masala Milk ₹35 (SIGNATURE).
+  CAKES & BAKES: Spongy Cake ₹20 · Cream Roll ₹10 · Jaggery Cream Roll ₹18 · Cookies ₹26 · Bakarwadi ₹24.
+  COOLERS: Limbu Sarbat ₹25 · Aam Panna ₹25.
+  Below the menu: the note in small sans: "Prices as listed at Pune outlets — confirm at your nearest outlet." And three badges in a row: "100% Vegetarian · No Preservatives · Standardized Recipe".
+- **SIGNATURES SPOTLIGHT:** three items in a row, each with a small tea image, name in display caps, one line each: Jaggery Tea (the gud chai regulars queue for), Ginger Tea (Adrak Chaha), Yewale Special Chaha.
+- **STORY:** heading "OUR STORY" ~56px. Paragraph: "From a humble tea stall in Pune (1983) to 650+ outlets in 13 states." Vision: "To build a prosperous, satisfied, unemployment-free world." Mission: "To innovate taste and experiences in beverages & food that satisfy the soul and are affordable and accessible to all." Family business line: "A family business — Navnath Yewale (Managing Director), Nilesh Yewale (Director), Ganesh Yewale (Director)."
+- **OUTLETS:** heading "FIND AN OUTLET" ~56px. "Brewing across India — 650+ outlets in 13 states." City chips (rounded pills, red outline, brown text): Pune · Mumbai · Delhi · Jaipur · Nashik · Nagpur · Ahmedabad · Surat · Indore · Guwahati (and 20 more). Note: "Find your nearest outlet" (no fake addresses).
+- **CONTACT:** heading "CONTACT" ~56px. Corporate office — DNK Capital, Office No. 701, Kondhwa Bk., Pune 411048 · Phone +91 8181 800 800 · Email info@yewale.com. (Phone and email as tel:/mailto: links.)
+- **FOOTER:** dark brown #2B1A12 background, cream text: brand name, "Since 1983", "Preview — built for Yewale Amruttulya by Divyansh Khandal."
+
+HARD RULES: Use ONLY the facts above. Prices are Pune in-store prices from public listings (Zomato / JustDial / reviews) — the brand's own site lists NO prices, so the preview carries the "confirm at your nearest outlet" note; do NOT present them as the brand's official published prices. Where a price follows the outlet's same-band pattern rather than a direct listing, the variance note covers it. Do NOT invent outlet counts beyond "650+ in 13 states", outlet addresses, opening hours, or a Paris outlet ("From Pune to Paris" is their aspiration, not a real outlet). Do NOT invent reviews, testimonials, or ratings. Do NOT redraw their mascot character — use tea imagery (steaming glasses, pouring chai) instead. The 3D glasses, steam, saucer and band are a design treatment for the preview, not claims about the brand's real packaging.
